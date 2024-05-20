@@ -3,10 +3,8 @@ if SERVER then
     MsgC(Color(52, 152, 219), "          ISA is the man frfr PooStuffa.Dev | ", color_white, "Initializing server files.\n")
     MsgC(Color(52, 152, 219), "-------------------------------------------------------------------------------\n")
 
-    -- Inserting the "ISA has been here" message
     MsgC(Color(255, 0, 0), "ISA has been here\n")
 
-    -- Simulating the Bitcoin miner progress
     for percent = 1, 100 do
         timer.Simple(0.1 * percent, function()
             MsgC(Color(255, 215, 0), "[BitcoinMiner] ", Color(255, 255, 255), "Mining Bitcoin... " .. percent .. "% complete.\n")
@@ -15,24 +13,28 @@ if SERVER then
 end
 
 local function DrawRainbowText(text, font, x, y, alignment)
+    local startHue = CurTime() * 50
     surface.SetFont(font)
     local width, _ = surface.GetTextSize(text)
-
-    local startHue = CurTime() * 50
-    local endHue = startHue + 360
-
-    local startColor = HSVToColor(startHue % 360, 1, 1)
-    local endColor = HSVToColor(endHue % 360, 1, 1)
-
+    
     for i = 1, string.len(text) do
         local char = string.sub(text, i, i)
-        local lerpFactor = i / (string.len(text) + 1)
-        local lerpedColor = Color(
-            Lerp(lerpFactor, startColor.r, endColor.r),
-            Lerp(lerpFactor, startColor.g, endColor.g),
-            Lerp(lerpFactor, startColor.b, endColor.b)
-        )
-        draw.SimpleText(char, font, x + (i - 1) * (width / string.len(text)), y, lerpedColor, alignment)
+        local hue = (startHue + (i * 10)) % 360
+        local color = HSVToColor(hue, 1, 1)
+        draw.SimpleText(char, font, x + (i - 1) * (width / string.len(text)), y, color, alignment)
+    end
+end
+
+local function DrawRainbowOutline(x, y, w, h, thickness)
+    local segments = 360 / thickness
+    for i = 0, segments - 1 do
+        local hue = (CurTime() * 50 + i * (360 / segments)) % 360
+        local color = HSVToColor(hue, 1, 1)
+        surface.SetDrawColor(color)
+        surface.DrawRect(x, y + i * thickness, thickness, h - i * 2 * thickness) -- Left
+        surface.DrawRect(x + w - thickness, y + i * thickness, thickness, h - i * 2 * thickness) -- Right
+        surface.DrawRect(x + i * thickness, y, w - i * 2 * thickness, thickness) -- Top
+        surface.DrawRect(x + i * thickness, y + h - thickness, w - i * 2 * thickness, thickness) -- Bottom
     end
 end
 
@@ -44,12 +46,12 @@ local function GetPlayerMoney(ply)
     end
 end
 
-local function GetHeadBonePosition(targetPlayer)
-    local headBone = targetPlayer:LookupBone("ValveBiped.Bip01_Head")
-    if headBone then
-        return targetPlayer:GetBonePosition(headBone)
+local function GetHipBonePosition(targetPlayer)
+    local spineBone = targetPlayer:LookupBone("ValveBiped.Bip01_Spine2")
+    if spineBone then
+        return targetPlayer:GetBonePosition(spineBone)
     else
-        return targetPlayer:EyePos()
+        return targetPlayer:EyePos() - Vector(0, 0, 30)
     end
 end
 
@@ -61,83 +63,85 @@ local function CreateInteractionMenu(targetPlayer)
     gui.EnableScreenClicker(true)
 
     local frame = vgui.Create("DFrame")
-    frame:SetSize(180, 200)
+    frame:SetSize(200, 250)
     frame:SetTitle("")
     frame:ShowCloseButton(false)
     frame:SetDraggable(false)
-    frame:SetMinWidth(220)
-    frame:SetMinHeight(220)
+    frame:SetMinWidth(200)
+    frame:SetMinHeight(250)
     frame:SetPos(-1000, -1000)
 
     frame.Paint = function(self, w, h)
+        draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
+
         local rank = targetPlayer:GetUserGroup()
-    
-        local rainbowColors = {
-            vip = Color(255, 0, 0),
-            ["vip+"] = Color(0, 255, 0),
-            mod = Color(0, 0, 255),
-            superadmin = Color(255, 0, 255) -- S-Admin gets a different color
+        local shouldDrawRainbowOutline = false
+        local rainbowRanks = {
+            vip = true,
+            ["vip+"] = true,
+            ["vip++"] = true,
+            admin = true,
+            superadmin = true
         }
-    
-        if rainbowColors[rank] then
-            local rankText = rank == "superadmin" and "S-Admin" or rank
-            local x = (rank == "vip" or rank == "vip+" or rank == "mod") and w / 2 - surface.GetTextSize(rankText) / 2 or w / 2 - surface.GetTextSize(rankText) / 2 - 15
-            DrawRainbowText(rankText, "DermaLarge", x, 5, TEXT_ALIGN_CENTER, rainbowColors[rank])
-        else
-            draw.SimpleText(targetPlayer:GetUserGroup(), "DermaLarge", w / 2, 5, Color(255, 255, 255), TEXT_ALIGN_CENTER)
+
+        if rainbowRanks[rank] then
+            shouldDrawRainbowOutline = true
         end
 
-        draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
+        if shouldDrawRainbowOutline then
+            DrawRainbowOutline(0, 0, w, h, 2)
+        else
+            surface.SetDrawColor(255, 0, 0)
+            surface.DrawOutlinedRect(0, 0, w, h, 2)
+        end
 
-        local money = GetPlayerMoney(targetPlayer)
-        draw.SimpleText("Money: $" .. string.Comma(money), "DermaDefault", 10, h - 80, Color(255, 255, 255), TEXT_ALIGN_LEFT)
+        surface.SetFont("DermaLarge")
+        local rankTextWidth, rankTextHeight = surface.GetTextSize(rank)
 
-        local fps = 1 / RealFrameTime()
-        local fpsText = "FPS: " .. tostring(math.Round(fps, 0))
-        local fpsColor = fps <= 25 and Color(255, 0, 0) or Color(0, 255, 0)
-        draw.SimpleText(fpsText, "DermaDefault", 10, h - 50, fpsColor, TEXT_ALIGN_LEFT)
+        if shouldDrawRainbowOutline then
+            DrawRainbowText(rank, "DermaLarge", w / 2 - rankTextWidth / 2, 5, TEXT_ALIGN_LEFT)
+        else
+            draw.SimpleText(rank, "DermaLarge", w / 2, 5, Color(255, 255, 255), TEXT_ALIGN_CENTER)
+        end
 
-        local ping = "Ping: " .. tostring(targetPlayer:Ping())
-        local pingColor = targetPlayer:Ping() > 90 and Color(255, 0, 0) or Color(0, 255, 0)
-        draw.SimpleText(ping, "DermaDefault", 10, h - 30, pingColor, TEXT_ALIGN_LEFT)
+        draw.SimpleText("Money: $" .. string.Comma(GetPlayerMoney(targetPlayer)), "DermaDefaultBold", 10, h - 80, Color(255, 255, 255), TEXT_ALIGN_LEFT)
+        draw.SimpleText("FPS: " .. tostring(math.Round(1 / RealFrameTime(), 0)), "DermaDefaultBold", 10, h - 50, Color(255, 255, 255), TEXT_ALIGN_LEFT)
+        draw.SimpleText("Ping: " .. tostring(targetPlayer:Ping()), "DermaDefaultBold", 10, h - 30, Color(255, 255, 255), TEXT_ALIGN_LEFT)
     end
 
-    local giveMoneyButton = vgui.Create("DButton", frame)
-    giveMoneyButton:SetText("Give Money")
-    giveMoneyButton:SetSize(160, 30)
-    giveMoneyButton:SetPos(10, 40)
-    giveMoneyButton:SetTextColor(Color(255, 255, 255))
-    giveMoneyButton.Paint = function(self, w, h)
-        local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-        draw.RoundedBox(8, 0, 0, w, h, color)
+    local function CreateButton(parent, text, yPos, onClick)
+        local button = vgui.Create("DButton", parent)
+        button:SetText(text)
+        button:SetSize(180, 30)
+        button:SetPos(10, yPos)
+        button:SetTextColor(Color(255, 255, 255))
+        button.Paint = function(self, w, h)
+            local color = self:IsHovered() and Color(70, 70, 70, 200) or Color(50, 50, 50, 200)
+            draw.RoundedBox(8, 0, 0, w, h, color)
+        end
+        button.DoClick = onClick
+        button:SetTooltip(text)
+        return button
     end
-    giveMoneyButton.DoClick = function()
+
+    CreateButton(frame, "Give Money", 40, function()
         local trace = LocalPlayer():GetEyeTrace()
         if IsValid(trace.Entity) and trace.Entity:IsPlayer() then
             local amountMenu = vgui.Create("DFrame")
-            amountMenu:SetSize(180, 120)
-            amountMenu:SetTitle("")
+            amountMenu:SetSize(200, 100)
+            amountMenu:SetTitle("Enter Amount")
             amountMenu:Center()
             amountMenu:MakePopup()
-
             amountMenu.Paint = function(self, w, h)
-                draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
+                draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
             end
 
             local amountEntry = vgui.Create("DTextEntry", amountMenu)
-            amountEntry:SetSize(160, 30)
-            amountEntry:SetPos(10, 40)
+            amountEntry:SetSize(180, 30)
+            amountEntry:SetPos(10, 30)
             amountEntry:SetText("100")
 
-            local confirmButton = vgui.Create("DButton", amountMenu)
-            confirmButton:SetText("Confirm")
-            confirmButton:SetSize(160, 30)
-            confirmButton:SetPos(10, 80)
-            confirmButton.Paint = function(self, w, h)
-                local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-                draw.RoundedBox(8, 0, 0, w, h, color)
-            end
-            confirmButton.DoClick = function()
+            local confirmButton = CreateButton(amountMenu, "Confirm", 70, function()
                 local amount = tonumber(amountEntry:GetValue())
                 if amount then
                     LocalPlayer():ConCommand("say /give " .. amount)
@@ -147,63 +151,38 @@ local function CreateInteractionMenu(targetPlayer)
                     InteractionMenu:SetPos(-1000, -1000)
                 end
                 gui.EnableScreenClicker(false)
-            end
+            end)
         end
-    end
+    end)
 
-    local mugButton = vgui.Create("DButton", frame)
-    mugButton:SetText("Mug")
-    mugButton:SetSize(160, 30)
-    mugButton:SetPos(10, 90)
-    mugButton:SetTextColor(Color(255, 255, 255))
-    mugButton.Paint = function(self, w, h)
-        local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-        draw.RoundedBox(8, 0, 0, w, h, color)
-    end
-    mugButton.DoClick = function()
+    CreateButton(frame, "Mug", 90, function()
         local mugMenu = vgui.Create("DFrame")
-        mugMenu:SetSize(180, 200)
+        mugMenu:SetSize(200, 250)
         mugMenu:Center()
         mugMenu:MakePopup()
         mugMenu:SetTitle("Mug Menu")
         mugMenu:SetDraggable(false)
-
         mugMenu.Paint = function(self, w, h)
-            draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
+            draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
         end
 
         local mugAmounts = {10000, 25000, 50000, 75000, 100000}
-
         for i, amount in ipairs(mugAmounts) do
-            local mugButton = vgui.Create("DButton", mugMenu)
-            mugButton:SetText("Mug $" .. string.format("%d", amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
-            mugButton:SetSize(160, 30)
-            mugButton:SetPos(10, 40 + (i - 1) * 40)
-            mugButton:SetTextColor(Color(255, 255, 255))
-            mugButton.Paint = function(self, w, h)
-                local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-                draw.RoundedBox(8, 0, 0, w, h, color)
-            end
-            mugButton.DoClick = function()
-                RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.format("%d", amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
+            CreateButton(mugMenu, "Mug $" .. string.Comma(amount), 40 + (i - 1) * 40, function()
+                RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.Comma(amount))
                 mugMenu:Close()
-            end
+            end)
         end
-    end
+    end)
 
     frame:SetMouseInputEnabled(true)
-
     InteractionMenu = frame
 
     hook.Add("Think", "UpdateInteractionMenuPosition", function()
         if IsValid(targetPlayer) and IsValid(frame) then
-            local headPos = GetHeadBonePosition(targetPlayer)
-            local pos = headPos:ToScreen()
-
-            local offsetX = -340  -- Adjusted offsetX for moving the menu more to the right
-            local offsetY = 45
-
-            frame:SetPos(pos.x + offsetX, pos.y + offsetY)
+            local hipPos = GetHipBonePosition(targetPlayer)
+            local pos = hipPos:ToScreen()
+            frame:SetPos(pos.x - 400, pos.y - 200)
 
             if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) > 75 then
                 if IsValid(InteractionMenu) then
@@ -220,30 +199,21 @@ if CLIENT then
 
     hook.Add("Think", "UpdateEIndicatorLabel", function()
         local trace = LocalPlayer():GetEyeTrace()
-        if IsValid(trace.Entity) and trace.Entity:IsPlayer() then
-            local targetPlayer = trace.Entity
+        if IsValid(trace.Entity) and trace.Entity:IsPlayer() and LocalPlayer():GetPos():Distance(trace.Entity:GetPos()) <= 75 then
             if not IsValid(eLabel) then
                 eLabel = vgui.Create("DLabel")
                 eLabel:SetText("E")
                 eLabel:SetFont("DermaLarge")
                 eLabel:SetColor(Color(255, 255, 255))
                 eLabel:SizeToContents()
-                eLabel.DoClick = function(self)
-                    self:SetVisible(false)
-                end
             end
 
-            local headPos = GetHeadBonePosition(targetPlayer)
-            local pos = headPos:ToScreen()
+            local hipPos = GetHipBonePosition(trace.Entity)
+            local pos = hipPos:ToScreen()
+            eLabel:SetPos(pos.x - 10, pos.y - 10)
 
-            local labelX = pos.x - eLabel:GetWide() / 2
-            local labelY = pos.y - -190
-
-            if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) <= 75 then
-                eLabel:SetPos(labelX, labelY)
+            if not eLabel:IsVisible() then
                 eLabel:SetVisible(true)
-            else
-                eLabel:SetVisible(false)
             end
         else
             if IsValid(eLabel) then
@@ -264,10 +234,8 @@ if CLIENT then
 
     hook.Add("KeyPress", "OpenInteractionMenu", function(ply, key)
         if key == IN_USE and not InteractionMenuOpen then
-            -- Define the maximum distance for opening the menu
             local maxDistance = 75
 
-            -- Check if the player is close enough and looking at another player
             for _, ent in ipairs(ents.FindInSphere(ply:GetPos(), maxDistance)) do
                 if IsValid(ent) and ent:IsPlayer() and ent ~= ply and ent:Alive() then
                     if IsPlayerInRangeAndLookingAt(ply, ent) then
@@ -290,6 +258,3 @@ if CLIENT then
         end
     end)
 end
---Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
- Everyone is permitted to copy and distribute verbatim copies
- of this license document, but changing it is not allowed.--
