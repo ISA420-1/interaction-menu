@@ -1,3 +1,17 @@
+-- Shared variable to store the last mug click time
+local lastMugClickTime = 0
+local mugCooldown = 600 -- 10 minutes in seconds
+
+-- Function to check if the mug button can be clicked based on cooldown
+local function CanClickMugButton()
+    return CurTime() - lastMugClickTime >= mugCooldown
+end
+
+-- Function to enable the mug button after cooldown
+local function EnableMugButton()
+    lastMugClickTime = CurTime()
+end
+
 if SERVER then
     MsgC(Color(52, 152, 219), "-------------------------------------------------------------------------------\n")
     MsgC(Color(52, 152, 219), "          ISA is the man frfr PooStuffa.Dev | ", color_white, "Initializing server files.\n")
@@ -73,7 +87,7 @@ local function CreateInteractionMenu(targetPlayer)
 
     frame.Paint = function(self, w, h)
         draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
-
+    
         local rank = targetPlayer:GetUserGroup()
         local shouldDrawRainbowOutline = false
         local rainbowRanks = {
@@ -83,31 +97,36 @@ local function CreateInteractionMenu(targetPlayer)
             admin = true,
             superadmin = true
         }
-
+    
         if rainbowRanks[rank] then
             shouldDrawRainbowOutline = true
         end
-
+    
         if shouldDrawRainbowOutline then
             DrawRainbowOutline(0, 0, w, h, 2)
         else
             surface.SetDrawColor(255, 0, 0)
             surface.DrawOutlinedRect(0, 0, w, h, 2)
         end
-
+    
         surface.SetFont("DermaLarge")
         local rankTextWidth, rankTextHeight = surface.GetTextSize(rank)
-
+    
         if shouldDrawRainbowOutline then
-            DrawRainbowText(rank, "DermaLarge", w / 2 - rankTextWidth / 2, 5, TEXT_ALIGN_LEFT)
+            local x = w / 2 - rankTextWidth / 2
+            local y = 5
+            DrawRainbowText(rank, "DermaLarge", x, y, TEXT_ALIGN_LEFT)
         else
-            draw.SimpleText(rank, "DermaLarge", w / 2, 5, Color(255, 255, 255), TEXT_ALIGN_CENTER)
+            local x = w / 2
+            local y = 5
+            draw.SimpleText(rank, "DermaLarge", x, y, Color(255, 255, 255), TEXT_ALIGN_CENTER)
         end
-
+    
         draw.SimpleText("Money: $" .. string.Comma(GetPlayerMoney(targetPlayer)), "DermaDefaultBold", 10, h - 80, Color(255, 255, 255), TEXT_ALIGN_LEFT)
         draw.SimpleText("FPS: " .. tostring(math.Round(1 / RealFrameTime(), 0)), "DermaDefaultBold", 10, h - 50, Color(255, 255, 255), TEXT_ALIGN_LEFT)
         draw.SimpleText("Ping: " .. tostring(targetPlayer:Ping()), "DermaDefaultBold", 10, h - 30, Color(255, 255, 255), TEXT_ALIGN_LEFT)
     end
+    
 
     local function CreateButton(parent, text, yPos, onClick)
         local button = vgui.Create("DButton", parent)
@@ -156,22 +175,28 @@ local function CreateInteractionMenu(targetPlayer)
     end)
 
     CreateButton(frame, "Mug", 90, function()
-        local mugMenu = vgui.Create("DFrame")
-        mugMenu:SetSize(200, 250)
-        mugMenu:Center()
-        mugMenu:MakePopup()
-        mugMenu:SetTitle("Mug Menu")
-        mugMenu:SetDraggable(false)
-        mugMenu.Paint = function(self, w, h)
-            draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
-        end
-
-        local mugAmounts = {10000, 25000, 50000, 75000, 100000}
-        for i, amount in ipairs(mugAmounts) do
-            CreateButton(mugMenu, "Mug $" .. string.Comma(amount), 40 + (i - 1) * 40, function()
-                RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.Comma(amount))
-                mugMenu:Close()
-            end)
+        -- Check if the mug button can be clicked based on cooldown
+        if CanClickMugButton() then
+            local mugMenu = vgui.Create("DFrame")
+            mugMenu:SetSize(200, 250)
+            mugMenu:Center()
+            mugMenu:MakePopup()
+            mugMenu:SetTitle("Mug Menu")
+            mugMenu:SetDraggable(false)
+            mugMenu.Paint = function(self, w, h)
+                draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
+            end
+    
+            local mugAmounts = {10000, 25000, 50000, 75000, 100000}
+            for i, amount in ipairs(mugAmounts) do
+                CreateButton(mugMenu, "Mug $" .. string.Comma(amount), 40 + (i - 1) * 40, function()
+                    RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.Comma(amount))
+                    mugMenu:Close()
+                    EnableMugButton() -- Update the last mug click time
+                end)
+            end
+        else
+            print("Mug button is on cooldown. Please wait before mugging again.")
         end
     end)
 
