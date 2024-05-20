@@ -26,16 +26,29 @@ if SERVER then
     end
 end
 
-local function DrawRainbowText(text, font, x, y, alignment)
+local function DrawRainbowTextCentered(text, font, x, y, w)
     local startHue = CurTime() * 50
     surface.SetFont(font)
-    local width, _ = surface.GetTextSize(text)
     
-    for i = 1, string.len(text) do
-        local char = string.sub(text, i, i)
+    local totalWidth = 0
+    for i = 1, #text do
+        local char = text:sub(i, i)
+        local charWidth, _ = surface.GetTextSize(char)
+        totalWidth = totalWidth + charWidth
+    end
+
+    local posX = x + (w - totalWidth) / 2
+    for i = 1, #text do
+        local char = text:sub(i, i)
+        local charWidth, _ = surface.GetTextSize(char)
         local hue = (startHue + (i * 10)) % 360
         local color = HSVToColor(hue, 1, 1)
-        draw.SimpleText(char, font, x + (i - 1) * (width / string.len(text)), y, color, alignment)
+        
+        surface.SetTextColor(color)
+        surface.SetTextPos(posX, y)
+        surface.DrawText(char)
+        
+        posX = posX + charWidth
     end
 end
 
@@ -69,6 +82,31 @@ local function GetHipBonePosition(targetPlayer)
     end
 end
 
+local function CreateButton(parent, text, yPos, onClick, hasRainbowOutline)
+    local button = vgui.Create("DButton", parent)
+    button:SetText(text)
+    button:SetSize(200, 35)
+    button:SetPos(10, yPos)
+    button:SetTextColor(Color(255, 255, 255))
+    button.Paint = function(self, w, h)
+        local hovered = self:IsHovered()
+        local baseColor = hovered and Color(255, 80, 80, 255) or Color(255, 0, 0, 255)
+        local borderColor = hovered and Color(255, 130, 130, 255) or Color(255, 50, 50, 255)
+        draw.RoundedBox(8, 0, 0, w, h, baseColor)
+        if hasRainbowOutline then
+            DrawRainbowOutline(0, 0, w, h, 2)
+        else
+            surface.SetDrawColor(borderColor)
+            surface.DrawOutlinedRect(0, 0, w, h, 2)
+        end
+        surface.SetDrawColor(255, 255, 255, 50)
+        surface.DrawTexturedRect(0, 0, w, h)
+    end
+    button.DoClick = onClick
+    button:SetTooltip(text)
+    return button
+end
+
 local function CreateInteractionMenu(targetPlayer)
     if IsValid(InteractionMenu) then
         InteractionMenu:Remove()
@@ -77,17 +115,16 @@ local function CreateInteractionMenu(targetPlayer)
     gui.EnableScreenClicker(true)
 
     local frame = vgui.Create("DFrame")
-    frame:SetSize(200, 250)
+    frame:SetSize(220, 270)
     frame:SetTitle("")
-    frame:ShowCloseButton(false)
+    frame:ShowCloseButton(false) -- Hides the close button
     frame:SetDraggable(false)
-    frame:SetMinWidth(200)
-    frame:SetMinHeight(250)
+    frame:SetMinWidth(220)
+    frame:SetMinHeight(270)
     frame:SetPos(-1000, -1000)
-
     frame.Paint = function(self, w, h)
-        draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
-    
+        draw.RoundedBox(12, 0, 0, w, h, Color(45, 45, 45, 230))
+
         local rank = targetPlayer:GetUserGroup()
         local shouldDrawRainbowOutline = false
         local rainbowRanks = {
@@ -97,66 +134,62 @@ local function CreateInteractionMenu(targetPlayer)
             admin = true,
             superadmin = true
         }
-    
+
         if rainbowRanks[rank] then
             shouldDrawRainbowOutline = true
         end
-    
+
         if shouldDrawRainbowOutline then
             DrawRainbowOutline(0, 0, w, h, 2)
         else
             surface.SetDrawColor(255, 0, 0)
             surface.DrawOutlinedRect(0, 0, w, h, 2)
         end
-    
+
         surface.SetFont("DermaLarge")
         local rankTextWidth, rankTextHeight = surface.GetTextSize(rank)
-    
-        if shouldDrawRainbowOutline then
-            local x = w / 2 - rankTextWidth / 2
-            local y = 5
-            DrawRainbowText(rank, "DermaLarge", x, y, TEXT_ALIGN_LEFT)
-        else
-            local x = w / 2
-            local y = 5
-            draw.SimpleText(rank, "DermaLarge", x, y, Color(255, 255, 255), TEXT_ALIGN_CENTER)
-        end
-    
-        draw.SimpleText("Money: $" .. string.Comma(GetPlayerMoney(targetPlayer)), "DermaDefaultBold", 10, h - 80, Color(255, 255, 255), TEXT_ALIGN_LEFT)
-        draw.SimpleText("FPS: " .. tostring(math.Round(1 / RealFrameTime(), 0)), "DermaDefaultBold", 10, h - 50, Color(255, 255, 255), TEXT_ALIGN_LEFT)
-        draw.SimpleText("Ping: " .. tostring(targetPlayer:Ping()), "DermaDefaultBold", 10, h - 30, Color(255, 255, 255), TEXT_ALIGN_LEFT)
-    end
-    
 
-    local function CreateButton(parent, text, yPos, onClick)
-        local button = vgui.Create("DButton", parent)
-        button:SetText(text)
-        button:SetSize(180, 30)
-        button:SetPos(10, yPos)
-        button:SetTextColor(Color(255, 255, 255))
-        button.Paint = function(self, w, h)
-            local color = self:IsHovered() and Color(70, 70, 70, 200) or Color(50, 50, 50, 200)
-            draw.RoundedBox(8, 0, 0, w, h, color)
+        if shouldDrawRainbowOutline then
+            DrawRainbowTextCentered(rank, "DermaLarge", 0, 5, w)
+        else
+            draw.SimpleText(rank, "DermaLarge", w / 2, 5, Color(255, 255, 255), TEXT_ALIGN_CENTER)
         end
-        button.DoClick = onClick
-        button:SetTooltip(text)
-        return button
+
+        draw.SimpleText("Ping: " .. tostring(targetPlayer:Ping()), "DermaDefaultBold", 10, h - 30, Color(255, 255, 255), TEXT_ALIGN_LEFT)
+        draw.SimpleText("Money: $" .. string.Comma(GetPlayerMoney(targetPlayer)), "DermaDefaultBold", w - 10, h - 30, Color(255, 255, 255), TEXT_ALIGN_RIGHT)
+    end
+
+    local rank = targetPlayer:GetUserGroup()
+    local hasRainbowOutline = false
+    local rainbowRanks = {
+        vip = true,
+        ["vip+"] = true,
+        ["vip++"] = true,
+        admin = true,
+        superadmin = true
+    }
+
+    if rainbowRanks[rank] then
+        hasRainbowOutline = true
     end
 
     CreateButton(frame, "Give Money", 40, function()
         local trace = LocalPlayer():GetEyeTrace()
         if IsValid(trace.Entity) and trace.Entity:IsPlayer() then
             local amountMenu = vgui.Create("DFrame")
-            amountMenu:SetSize(200, 100)
-            amountMenu:SetTitle("Enter Amount")
+            amountMenu:SetSize(220, 120)
+            amountMenu:SetTitle("")
+            amountMenu:ShowCloseButton(false) -- Hides the close button
+            amountMenu:SetDraggable(false) -- Makes the frame undraggable
             amountMenu:Center()
             amountMenu:MakePopup()
             amountMenu.Paint = function(self, w, h)
-                draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
+                draw.RoundedBox(12, 0, 0, w, h, Color(45, 45, 45, 230))
+                DrawRainbowOutline(0, 0, w, h, 2)
             end
 
             local amountEntry = vgui.Create("DTextEntry", amountMenu)
-            amountEntry:SetSize(180, 30)
+            amountEntry:SetSize(200, 30)
             amountEntry:SetPos(10, 30)
             amountEntry:SetText("100")
 
@@ -170,35 +203,51 @@ local function CreateInteractionMenu(targetPlayer)
                     InteractionMenu:SetPos(-1000, -1000)
                 end
                 gui.EnableScreenClicker(false)
-            end)
+            end, true)
         end
-    end)
+    end, hasRainbowOutline)
 
     CreateButton(frame, "Mug", 90, function()
-        -- Check if the mug button can be clicked based on cooldown
         if CanClickMugButton() then
             local mugMenu = vgui.Create("DFrame")
-            mugMenu:SetSize(200, 250)
+            mugMenu:SetSize(220, 270)
+            mugMenu:SetTitle("")
+            mugMenu:ShowCloseButton(false)
+            mugMenu:SetDraggable(false)
             mugMenu:Center()
             mugMenu:MakePopup()
-            mugMenu:SetTitle("Mug Menu")
-            mugMenu:SetDraggable(false)
             mugMenu.Paint = function(self, w, h)
-                draw.RoundedBox(8, 0, 0, w, h, Color(30, 30, 30, 220))
+                draw.RoundedBox(12, 0, 0, w, h, Color(45, 45, 45, 230))
+                DrawRainbowOutline(0, 0, w, h, 2)
             end
-    
-            local mugAmounts = {10000, 25000, 50000, 75000, 100000}
-            for i, amount in ipairs(mugAmounts) do
+
+            -- Adding close button for the mug menu
+            local closeButton = vgui.Create("DButton", mugMenu)
+            closeButton:SetText("X")
+            closeButton:SetFont("DermaDefaultBold")
+            closeButton:SetSize(30, 30)
+            closeButton:SetPos(mugMenu:GetWide() - 35, 5)
+            closeButton:SetTextColor(Color(255, 255, 255))
+            closeButton.Paint = function(self, w, h)
+                draw.RoundedBox(4, 0, 0, w, h, Color(255, 0, 0, 200))
+            end
+            closeButton.DoClick = function()
+                mugMenu:Close()
+            end
+
+            for i = 1, 4 do
+                local amount = i * 45000
                 CreateButton(mugMenu, "Mug $" .. string.Comma(amount), 40 + (i - 1) * 40, function()
                     RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.Comma(amount))
                     mugMenu:Close()
-                    EnableMugButton() -- Update the last mug click time
-                end)
+                    EnableMugButton()
+                end, true)
             end
         else
-            print("Mug button is on cooldown. Please wait before mugging again.")
+            notification.AddLegacy("Mug button is on cooldown. Please wait before mugging again.", NOTIFY_ERROR, 5)
+            surface.PlaySound("buttons/button10.wav")
         end
-    end)
+    end, hasRainbowOutline)
 
     frame:SetMouseInputEnabled(true)
     InteractionMenu = frame
@@ -207,7 +256,7 @@ local function CreateInteractionMenu(targetPlayer)
         if IsValid(targetPlayer) and IsValid(frame) then
             local hipPos = GetHipBonePosition(targetPlayer)
             local pos = hipPos:ToScreen()
-            frame:SetPos(pos.x - 400, pos.y - 200)
+            frame:SetPos(pos.x - 400, pos.y - 110)
 
             if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) > 75 then
                 if IsValid(InteractionMenu) then
