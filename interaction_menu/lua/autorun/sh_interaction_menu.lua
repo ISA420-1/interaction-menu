@@ -185,7 +185,12 @@ local function CreateInteractionMenu(targetPlayer)
             amountMenu:MakePopup()
             amountMenu.Paint = function(self, w, h)
                 draw.RoundedBox(12, 0, 0, w, h, Color(45, 45, 45, 230))
-                DrawRainbowOutline(0, 0, w, h, 2)
+                if hasRainbowOutline then
+                    DrawRainbowOutline(0, 0, w, h, 2)
+                else
+                    surface.SetDrawColor(255, 0, 0)
+                    surface.DrawOutlinedRect(0, 0, w, h, 2)
+                end
             end
 
             local amountEntry = vgui.Create("DTextEntry", amountMenu)
@@ -203,7 +208,7 @@ local function CreateInteractionMenu(targetPlayer)
                     InteractionMenu:SetPos(-1000, -1000)
                 end
                 gui.EnableScreenClicker(false)
-            end, true)
+            end, hasRainbowOutline)
         end
     end, hasRainbowOutline)
 
@@ -218,7 +223,12 @@ local function CreateInteractionMenu(targetPlayer)
             mugMenu:MakePopup()
             mugMenu.Paint = function(self, w, h)
                 draw.RoundedBox(12, 0, 0, w, h, Color(45, 45, 45, 230))
-                DrawRainbowOutline(0, 0, w, h, 2)
+                if hasRainbowOutline then
+                    DrawRainbowOutline(0, 0, w, h, 2)
+                else
+                    surface.SetDrawColor(255, 0, 0)
+                    surface.DrawOutlinedRect(0, 0, w, h, 2)
+                end
             end
 
             -- Adding close button for the mug menu
@@ -241,7 +251,7 @@ local function CreateInteractionMenu(targetPlayer)
                     RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.Comma(amount))
                     mugMenu:Close()
                     EnableMugButton()
-                end, true)
+                end, hasRainbowOutline)
             end
         else
             notification.AddLegacy("Mug button is on cooldown. Please wait before mugging again.", NOTIFY_ERROR, 5)
